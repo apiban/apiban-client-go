@@ -21,7 +21,7 @@ cd /usr/local/bin/apiban
 ```
 
 ```shell 
-wget https://github.com/palner/apiban/raw/v0.7.0/clients/go/apiban-iptables-client   
+wget https://github.com/apiban/apiban-client-go/raw/v1.0/apiban-iptables-client  
 ```
 
 3. Download `config.json` to `/usr/local/bin/apiban/`
@@ -31,7 +31,7 @@ cd /usr/local/bin/apiban
 ```
 
 ```shell
-wget https://raw.githubusercontent.com/palner/apiban/v0.7.0/clients/go/apiban-iptables/config.json
+wget https://github.com/apiban/apiban-client-go/raw/v1.0/config.json
 ```
 
 4. Using your favorite text editor, update `config.json` with your APIBAN key, for e.g:
