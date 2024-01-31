@@ -49,7 +49,7 @@ chmod +x /usr/local/bin/apiban/apiban-iptables-client
 7. Test
 
 ```shell 
-./usr/local/bin/apiban/apiban-iptables-client 
+/usr/local/bin/apiban/apiban-iptables-client 
 ```
 
 ### Notes
