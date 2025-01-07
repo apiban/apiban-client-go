@@ -32,6 +32,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -60,22 +61,48 @@ func init() {
 
 // ApibanConfig is the structure for the JSON config file
 type ApibanConfig struct {
-	APIKEY  string `json:"apikey"`
-	LKID    string `json:"lkid"`
-	VERSION string `json:"version"`
-	FLUSH   string `json:"flush"`
-	SET     string `json:"set"`
-
+	APIKEY     string `json:"apikey"`
+	LKID       string `json:"lkid"`
+	VERSION    string `json:"version"`
+	FLUSH      string `json:"flush"`
+	SET        string `json:"set"`
+	Allowed    []IPNet
 	sourceFile string
 }
 
+type IPNet struct {
+	Cidr string `json:"cidr"`
+}
+
 // Function to see if string within string
-func contains(list []string, value string) bool {
+func Contains(list []string, value string) bool {
 	for _, val := range list {
 		if val == value {
 			return true
 		}
 	}
+	return false
+}
+
+// Function to see if string (cidr) contains ip (string)
+func ContainsIP(cidrstring string, ip string) bool {
+	// make sure cidrstring is a valid cidr network. Ignore ip and get the network part.
+	_, netw, err := net.ParseCIDR(cidrstring)
+	if err != nil {
+		return false
+	}
+
+	// make sure ip is an ip
+	ipaddress := net.ParseIP(ip)
+	if ipaddress == nil {
+		return false
+	}
+
+	// check if valid ipaddress is in valid network
+	if netw.Contains(ipaddress) {
+		return true
+	}
+
 	return false
 }
 
@@ -144,6 +171,9 @@ func main() {
 		apiconfig.FLUSH = strconv.FormatInt(flushnow, 10)
 	}
 
+	// tag to version of this script
+	apiconfig.VERSION = "1.5"
+
 	// Go connect for IPTABLES
 	ipt, err := iptables.New()
 	if err != nil {
@@ -202,12 +232,25 @@ func main() {
 		}
 
 		for _, ip := range res.IPs {
-			blockedip := ip + "/32"
-			err = ipt.AppendUnique("filter", "APIBAN", "-s", blockedip, "-d", "0/0", "-j", targetChain)
-			if err != nil {
-				log.Print("Adding rule failed. ", err.Error())
-			} else {
-				log.Print("Blocking ", blockedip)
+			blocktheip := true
+			// check if ip is in allowed
+			if apiconfig.Allowed != nil {
+				for _, v := range apiconfig.Allowed {
+					if ContainsIP(v.Cidr, ip) {
+						log.Println("** not blocking", ip, "--", v.Cidr, "is in allowed")
+						blocktheip = false
+					}
+				}
+			}
+
+			if blocktheip {
+				blockedip := ip + "/32"
+				err = ipt.AppendUnique("filter", "APIBAN", "-s", blockedip, "-d", "0/0", "-j", targetChain)
+				if err != nil {
+					log.Print("Adding rule failed. ", err.Error())
+				} else {
+					log.Print("Blocking ", blockedip)
+				}
 			}
 		}
 
@@ -287,19 +330,19 @@ func initializeIPTables(ipt *iptables.IPTables) (string, error) {
 
 	// Search for INPUT in IPTABLES
 	chain := "INPUT"
-	if !contains(originaListChain, chain) {
+	if !Contains(originaListChain, chain) {
 		return "error", errors.New("iptables does not contain expected INPUT chain")
 	}
 
 	// Search for FORWARD in IPTABLES
 	chain = "FORWARD"
-	if !contains(originaListChain, chain) {
+	if !Contains(originaListChain, chain) {
 		return "error", errors.New("iptables does not contain expected FORWARD chain")
 	}
 
 	// Search for APIBAN in IPTABLES
 	chain = "APIBAN"
-	if contains(originaListChain, chain) {
+	if Contains(originaListChain, chain) {
 		// APIBAN chain already exists
 		return "chain exists", nil
 	}
