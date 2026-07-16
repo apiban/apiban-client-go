@@ -41,6 +41,7 @@ import (
 
 	"github.com/apiban/golib"
 	"github.com/coreos/go-iptables/iptables"
+	"github.com/janeczku/go-ipset/ipset"
 )
 
 var configFileLocation string
@@ -66,12 +67,32 @@ type ApibanConfig struct {
 	VERSION    string `json:"version"`
 	FLUSH      string `json:"flush"`
 	SET        string `json:"set"`
+	IPSET      bool   `json:"ipset,omitempty"`
+	CHAIN      string `json:"chain,omitempty"`
 	Allowed    []IPNet
 	sourceFile string
 }
 
 type IPNet struct {
-	Cidr string `json:"cidr"`
+	Cidr string `json:"cidr,omitempty"`
+}
+
+// Params defines optional parameters for creating a new set.
+type Params struct {
+	HashFamily string
+	HashSize   int
+	MaxElem    int
+	Timeout    int
+}
+
+// IPSet implements an Interface to an set.
+type IPSet struct {
+	Name       string
+	HashType   string
+	HashFamily string
+	HashSize   int
+	MaxElem    int
+	Timeout    int
 }
 
 // Function to see if string within string
@@ -172,7 +193,11 @@ func main() {
 	}
 
 	// tag to version of this script
-	apiconfig.VERSION = "1.5"
+	apiconfig.VERSION = "2.0"
+	if apiconfig.CHAIN == "" {
+		log.Println("no chain provided, using APIBAN")
+		apiconfig.CHAIN = "APIBAN"
+	}
 
 	// Go connect for IPTABLES
 	ipt, err := iptables.New()
@@ -180,11 +205,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	//	if err := initializeIPTables(ipt); err != nil {
-	//		log.Fatalln("failed to initialize IPTables:", err)
-	//	}
-
-	iptinit, err := initializeIPTables(ipt)
+	iptinit, err := initializeIPTables(ipt, apiconfig)
 	if err != nil {
 		log.Fatalln("failed to initialize IPTables:", err)
 	}
@@ -194,14 +215,29 @@ func main() {
 		apiconfig.LKID = "100"
 	}
 
+	var apibanIpset *ipset.IPSet
+	if apiconfig.IPSET {
+		apibanIpset, err = ipset.New(apiconfig.CHAIN, "hash:ip", ipset.Params{})
+		if err != nil {
+			log.Fatalln("ipset failed. ", err.Error())
+		}
+	}
+
 	flushtime, _ := strconv.ParseInt(apiconfig.FLUSH, 10, 64)
 	flushdiff := now.Unix() - flushtime
 	if flushdiff >= 604800 {
-		err = ipt.ClearChain("filter", "APIBAN")
-		if err != nil {
-			log.Print("Flushing APIBAN chain failed. ", err.Error())
+		if apiconfig.IPSET {
+			err = apibanIpset.Flush()
+			if err != nil {
+				log.Println("Flushing", apiconfig.CHAIN, "ipset failed. ", err.Error())
+			}
 		} else {
-			log.Print("APIBAN chain flushed")
+			err = ipt.ClearChain("filter", apiconfig.CHAIN)
+			if err != nil {
+				log.Println("Flushing", apiconfig.CHAIN, "chain failed. ", err.Error())
+			} else {
+				log.Println(apiconfig.CHAIN, "chain flushed")
+			}
 		}
 
 		apiconfig.LKID = "100"
@@ -244,12 +280,17 @@ func main() {
 			}
 
 			if blocktheip {
-				blockedip := ip + "/32"
-				err = ipt.AppendUnique("filter", "APIBAN", "-s", blockedip, "-d", "0/0", "-j", targetChain)
+				if apiconfig.IPSET {
+					err = apibanIpset.Add(ip, 0)
+				} else {
+					blockedip := ip + "/32"
+					err = ipt.AppendUnique("filter", apiconfig.CHAIN, "-s", blockedip, "-d", "0/0", "-j", targetChain)
+				}
+
 				if err != nil {
 					log.Print("Adding rule failed. ", err.Error())
 				} else {
-					log.Print("Blocking ", blockedip)
+					log.Print("Blocking ", ip)
 				}
 			}
 		}
@@ -321,7 +362,7 @@ func (cfg *ApibanConfig) Update() error {
 	return enc.Encode(cfg)
 }
 
-func initializeIPTables(ipt *iptables.IPTables) (string, error) {
+func initializeIPTables(ipt *iptables.IPTables, apiconfig *ApibanConfig) (string, error) {
 	// Get existing chains from IPTABLES
 	originaListChain, err := ipt.ListChains("filter")
 	if err != nil {
@@ -340,32 +381,56 @@ func initializeIPTables(ipt *iptables.IPTables) (string, error) {
 		return "error", errors.New("iptables does not contain expected FORWARD chain")
 	}
 
-	// Search for APIBAN in IPTABLES
-	chain = "APIBAN"
-	if Contains(originaListChain, chain) {
-		// APIBAN chain already exists
-		return "chain exists", nil
+	// if ipset, check if rule exists (and make ipset). If iptables, check that chain exists
+	if apiconfig.IPSET {
+		log.Println("Using ipset...")
+		rules, err := ipt.List("filter", "INPUT")
+		if err != nil {
+			log.Println("Listing of INPUT rules failed:", err.Error())
+			return "error", err
+		}
+
+		if !Contains(rules, apiconfig.CHAIN) {
+			log.Println("INPUT doesn't contain", apiconfig.CHAIN, " rule - Creating now...")
+			// iptables -A INPUT -m set --match-set APIBAN src -j DROP
+			err = ipt.AppendUnique("filter", "INPUT", "-m", "set", "--match-set", apiconfig.CHAIN, "src", "-j", targetChain)
+			if err != nil {
+				return "error", fmt.Errorf("failed to add ipset rule to INPUT chain: %w", err)
+			}
+
+			return "chain created", nil
+		}
+
+		return "ipset rule exists", nil
+	} else {
+		log.Println("using iptables directly")
+
+		// Search for APIBAN in IPTABLES
+		if Contains(originaListChain, apiconfig.CHAIN) {
+			// APIBAN chain already exists
+			return "chain exists", nil
+		}
+
+		log.Println("IPTABLES doesn't contain", apiconfig.CHAIN, "- Creating now...")
+
+		// Add APIBAN chain
+		err = ipt.ClearChain("filter", apiconfig.CHAIN)
+		if err != nil {
+			return "error", fmt.Errorf("failed to clear chain: %w", err)
+		}
+
+		// Add APIBAN chain to INPUT
+		err = ipt.Insert("filter", "INPUT", 1, "-j", apiconfig.CHAIN)
+		if err != nil {
+			return "error", fmt.Errorf("failed to add chain to INPUT chain: %w", err)
+		}
+
+		// Add APIBAN chain to FORWARD
+		err = ipt.Insert("filter", "FORWARD", 1, "-j", apiconfig.CHAIN)
+		if err != nil {
+			return "error", fmt.Errorf("failed to add chain to FORWARD chain: %w", err)
+		}
+
+		return "chain created", nil
 	}
-
-	log.Print("IPTABLES doesn't contain APIBAN. Creating now...")
-
-	// Add APIBAN chain
-	err = ipt.ClearChain("filter", chain)
-	if err != nil {
-		return "error", fmt.Errorf("failed to clear APIBAN chain: %w", err)
-	}
-
-	// Add APIBAN chain to INPUT
-	err = ipt.Insert("filter", "INPUT", 1, "-j", chain)
-	if err != nil {
-		return "error", fmt.Errorf("failed to add APIBAN chain to INPUT chain: %w", err)
-	}
-
-	// Add APIBAN chain to FORWARD
-	err = ipt.Insert("filter", "FORWARD", 1, "-j", chain)
-	if err != nil {
-		return "error", fmt.Errorf("failed to add APIBAN chain to FORWARD chain: %w", err)
-	}
-
-	return "chain created", nil
 }

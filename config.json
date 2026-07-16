@@ -1,9 +1,11 @@
 {
 	"apikey":"MY API KEY",
 	"lkid":"100",
-	"version":"1.5",
+	"version":"2.0",
 	"set":"sip",
 	"flush":"200",
+	"chain":"APIBAN",
+	"ipset":false,
 	"allowed":[
 		{
 			"cidr":"1.1.1.1/32"
