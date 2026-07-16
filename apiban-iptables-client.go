@@ -205,6 +205,14 @@ func main() {
 		log.Panic(err)
 	}
 
+	var apibanIpset *ipset.IPSet
+	if apiconfig.IPSET {
+		apibanIpset, err = ipset.New(apiconfig.CHAIN, "hash:ip", ipset.Params{})
+		if err != nil {
+			log.Fatalln("ipset failed. ", err.Error())
+		}
+	}
+
 	iptinit, err := initializeIPTables(ipt, apiconfig)
 	if err != nil {
 		log.Fatalln("failed to initialize IPTables:", err)
@@ -213,14 +221,6 @@ func main() {
 	if iptinit == "chain created" {
 		log.Print("APIBAN chain was created - Resetting LKID")
 		apiconfig.LKID = "100"
-	}
-
-	var apibanIpset *ipset.IPSet
-	if apiconfig.IPSET {
-		apibanIpset, err = ipset.New(apiconfig.CHAIN, "hash:ip", ipset.Params{})
-		if err != nil {
-			log.Fatalln("ipset failed. ", err.Error())
-		}
 	}
 
 	flushtime, _ := strconv.ParseInt(apiconfig.FLUSH, 10, 64)
