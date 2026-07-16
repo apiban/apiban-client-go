@@ -2,6 +2,21 @@
 
 **APIBAN is made possible by the generosity of our [sponsors](https://apiban.org/doc.html#sponsors).**
 
+- [Using the GO executable](#using-the-go-executable)
+  - [Quick and Easy Install Instructions](#quick-and-easy-install-instructions)
+  - [Notes](#notes)
+- [Logs](#logs)
+  - [Log Rotation](#log-rotation)
+- [Automation](#automation)
+  - [Cron](#cron)
+  - [systemd](#systemd)
+- [Building on Raspbian Buster (or later)](#building-on-raspbian-buster)
+- [How it works](#how-it-works)
+  - [New in 2026](#new-in-2026)
+    - [IPSET](#ipset)
+    - [ALLOWED](#allowed)
+- [License/Warranty](#license--warranty)
+
 ## Using the GO executable
 
 You can build the client using go, or just use the pre-built executable: (for Raspberry Pi users, there's a compiled executable in the release assets or see below for building on a Pi)
@@ -115,11 +130,44 @@ go build apiban-iptables-client.go
 
 The client pulls the API key and last known ID from the **config.json** file.
 
+### New in 2026
+
+- [IPSET](#ipset)
+- [ALLOWED](#allowed)
+
 When executed, the client first checks to see if the **APIBAN** chain exists in iptables. If the chain does not exist, the APIBAN chain is recreated and the **LKID** is reset (allowing a full dump).
 
 IP addresses are added to APIBAN chain and actions are logged in **apiban-client.log**.
 
-By using the last known ID (LKID), only new addresses are pulled (if any); making the process incredibly more efficient. The client will not add duplicate addresses and a full download can be run manually by adding `FULL` as a command line argument (example: `./usr/local/bin/apiban-iptables-client FULL`). The FULL option is great should the system (or iptables) have been restarted.
+By using the last known ID (LKID), only new addresses are pulled (if any); making the process incredibly more efficient. The client will not add duplicate addresses and a full download can be run manually by adding `FULL` as a command line argument (example: `/usr/local/bin/apiban-iptables-client FULL`). The FULL option is great should the system (or iptables) have been restarted.
+
+#### IPSET
+
+The client now supports **ipset.** This is extremely useful with the large set of addresses returned by the API. You can also move from iptables to nftables and use the [nftables client](https://github.com/apiban/apiban-client-nftables). By default, **nftables** is much better at handling large pools of addresses.
+
+To activate IPSET, make sure ipset is set to `true` in the config:
+
+```json
+...
+"ipset":true,
+...
+```
+
+#### ALLOWED
+
+The client now supports marking addresses as allowed, ensuring that they are not blocked by the client. Addresses are listed in the config in CIDR notation. By default, the config lists the main apiban hosts and cloudflare (1.1.1.1) as an example:
+
+```json
+...
+	"allowed":[
+		{
+			"cidr":"1.1.1.1/32"
+		},
+		{
+			"cidr":"208.67.207.0/24"
+		}
+	]
+```
 
 ## License / Warranty
 
