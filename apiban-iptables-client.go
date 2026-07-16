@@ -37,6 +37,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/apiban/golib"
@@ -124,6 +125,15 @@ func ContainsIP(cidrstring string, ip string) bool {
 		return true
 	}
 
+	return false
+}
+
+func ContainsPartial(list []string, value string) bool {
+	for _, val := range list {
+		if strings.Contains(val, " "+value+" ") {
+			return true
+		}
+	}
 	return false
 }
 
@@ -390,7 +400,7 @@ func initializeIPTables(ipt *iptables.IPTables, apiconfig *ApibanConfig) (string
 			return "error", err
 		}
 
-		if !Contains(rules, apiconfig.CHAIN) {
+		if !ContainsPartial(rules, apiconfig.CHAIN) {
 			log.Println("INPUT doesn't contain", apiconfig.CHAIN, " rule - Creating now...")
 			// iptables -A INPUT -m set --match-set APIBAN src -j DROP
 			err = ipt.AppendUnique("filter", "INPUT", "-m", "set", "--match-set", apiconfig.CHAIN, "src", "-j", targetChain)
