@@ -40,9 +40,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apiban/go-ipset/ipset"
 	"github.com/apiban/golib"
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/janeczku/go-ipset/ipset"
 )
 
 var configFileLocation string
@@ -217,7 +217,7 @@ func main() {
 
 	var apibanIpset *ipset.IPSet
 	if apiconfig.IPSET {
-		apibanIpset, err = ipset.New(apiconfig.CHAIN, "hash:ip", ipset.Params{})
+		apibanIpset, err = ipset.New(apiconfig.CHAIN, "hash:ip", &ipset.Params{})
 		if err != nil {
 			log.Fatalln("ipset failed. ", err.Error())
 		}
