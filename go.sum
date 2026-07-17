@@ -1,5 +1,5 @@
-github.com/apiban/go-ipset/ipset v0.0.0-20260716231536-e17c3e62bf5e h1:ZxBkkoEU8HX26AlxGK6E2u1csFuj+bSIO9nsmLIF2mo=
-github.com/apiban/go-ipset/ipset v0.0.0-20260716231536-e17c3e62bf5e/go.mod h1:dZmzlQy6+jEClDUt3UfbhRnXhfKIkv/N4D4YR2iYNpg=
+github.com/apiban/go-ipset/ipset v0.0.0-20260717114541-d8e7a85fa2cc h1:fvdR7LfxG6cszuShut+vR3kc/jl3Pxo4KSuxxijYK2U=
+github.com/apiban/go-ipset/ipset v0.0.0-20260717114541-d8e7a85fa2cc/go.mod h1:dZmzlQy6+jEClDUt3UfbhRnXhfKIkv/N4D4YR2iYNpg=
 github.com/apiban/golib v1.0.1 h1:jkPKrmXKF9NUjDxDxspJzHnHzMwQJrw8jiNczwvP5Hs=
 github.com/apiban/golib v1.0.1/go.mod h1:grgJJemASO030hMA0fOfK/bqhdP2QMzik4IddRWzow4=
 github.com/coreos/go-iptables v0.8.0 h1:MPc2P89IhuVpLI7ETL/2tx3XZ61VeICZjYqDEgNsPRc=

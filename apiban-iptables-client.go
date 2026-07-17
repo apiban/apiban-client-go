@@ -35,12 +35,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/apiban/go-ipset/ipset"
 	"github.com/apiban/golib"
 	"github.com/coreos/go-iptables/iptables"
 )
@@ -76,24 +76,6 @@ type ApibanConfig struct {
 
 type IPNet struct {
 	Cidr string `json:"cidr,omitempty"`
-}
-
-// Params defines optional parameters for creating a new set.
-type Params struct {
-	HashFamily string
-	HashSize   int
-	MaxElem    int
-	Timeout    int
-}
-
-// IPSet implements an Interface to an set.
-type IPSet struct {
-	Name       string
-	HashType   string
-	HashFamily string
-	HashSize   int
-	MaxElem    int
-	Timeout    int
 }
 
 // Function to see if string within string
@@ -215,11 +197,12 @@ func main() {
 		log.Panic(err)
 	}
 
-	var apibanIpset *ipset.IPSet
 	if apiconfig.IPSET {
-		apibanIpset, err = ipset.New(apiconfig.CHAIN, "hash:ip", &ipset.Params{})
+		err = IpsetNew(apiconfig.CHAIN)
 		if err != nil {
-			log.Fatalln("ipset failed. ", err.Error())
+			log.Println("ipset failed. ", err.Error())
+		} else {
+			log.Println("ipset:", apiconfig.CHAIN)
 		}
 	}
 
@@ -237,9 +220,11 @@ func main() {
 	flushdiff := now.Unix() - flushtime
 	if flushdiff >= 604800 {
 		if apiconfig.IPSET {
-			err = apibanIpset.Flush()
+			err = IpsetFlush(apiconfig.CHAIN)
 			if err != nil {
 				log.Println("Flushing", apiconfig.CHAIN, "ipset failed. ", err.Error())
+			} else {
+				log.Println("Flushed", apiconfig.CHAIN, "ipset.")
 			}
 		} else {
 			err = ipt.ClearChain("filter", apiconfig.CHAIN)
@@ -291,7 +276,7 @@ func main() {
 
 			if blocktheip {
 				if apiconfig.IPSET {
-					err = apibanIpset.Add(ip, 0)
+					err = IpsetAddIp(apiconfig.CHAIN, ip)
 				} else {
 					blockedip := ip + "/32"
 					err = ipt.AppendUnique("filter", apiconfig.CHAIN, "-s", blockedip, "-d", "0/0", "-j", targetChain)
@@ -443,4 +428,46 @@ func initializeIPTables(ipt *iptables.IPTables, apiconfig *ApibanConfig) (string
 
 		return "chain created", nil
 	}
+}
+
+func IpsetNew(setname string) error {
+	path, err := exec.LookPath("ipset")
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(path, "create", setname, "hash:ip", "-exist")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func IpsetAddIp(setname string, ip string) error {
+	path, err := exec.LookPath("ipset")
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(path, "add", setname, ip, "-exist")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func IpsetFlush(setname string) error {
+	path, err := exec.LookPath("ipset")
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(path, "flush", setname)
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
 }
