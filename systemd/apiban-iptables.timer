@@ -1,0 +1,8 @@
+[Unit]
+Description=APIBan IPTables service schedule
+
+[Timer]
+OnUnitActiveSec=300
+
+[Install]
+WantedBy=timers.target
