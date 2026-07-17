@@ -197,15 +197,6 @@ func main() {
 		log.Panic(err)
 	}
 
-	if apiconfig.IPSET {
-		err = IpsetNew(apiconfig.CHAIN)
-		if err != nil {
-			log.Println("ipset failed. ", err.Error())
-		} else {
-			log.Println("ipset:", apiconfig.CHAIN)
-		}
-	}
-
 	iptinit, err := initializeIPTables(ipt, apiconfig)
 	if err != nil {
 		log.Fatalln("failed to initialize IPTables:", err)
@@ -387,6 +378,11 @@ func initializeIPTables(ipt *iptables.IPTables, apiconfig *ApibanConfig) (string
 
 		if !ContainsPartial(rules, apiconfig.CHAIN) {
 			log.Println("INPUT doesn't contain", apiconfig.CHAIN, " rule - Creating now...")
+			err = IpsetNew(apiconfig.CHAIN)
+			if err != nil {
+				log.Println("ipset create received:", err.Error())
+			}
+
 			// iptables -A INPUT -m set --match-set APIBAN src -j DROP
 			err = ipt.AppendUnique("filter", "INPUT", "-m", "set", "--match-set", apiconfig.CHAIN, "src", "-j", targetChain)
 			if err != nil {
