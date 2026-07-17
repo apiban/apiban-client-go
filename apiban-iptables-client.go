@@ -384,7 +384,7 @@ func initializeIPTables(ipt *iptables.IPTables, apiconfig *ApibanConfig) (string
 			}
 
 			// iptables -A INPUT -m set --match-set APIBAN src -j DROP
-			err = ipt.AppendUnique("filter", "INPUT", "-m", "set", "--match-set", apiconfig.CHAIN, "src", "-j", targetChain)
+			err = ipt.InsertUnique("filter", "INPUT", 1, "-m", "set", "--match-set", apiconfig.CHAIN, "src", "-j", targetChain)
 			if err != nil {
 				return "error", fmt.Errorf("failed to add ipset rule to INPUT chain: %w", err)
 			}
